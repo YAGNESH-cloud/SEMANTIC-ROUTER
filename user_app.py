@@ -3,8 +3,9 @@ import time
 import requests
 import streamlit as st
 
-API_URL = "http://127.0.0.1:8000/ask"
+import os
 
+API_URL = f"{os.getenv('API_BASE_URL', 'http://127.0.0.1:8000').rstrip('/')}/ask"
 st.set_page_config(
     page_title="Semantic AI | Assistant",
     page_icon="✦",
