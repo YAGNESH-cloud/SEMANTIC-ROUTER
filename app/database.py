@@ -39,8 +39,17 @@ def initialize_database():
             )
         """)
 
-        connection.commit()
+        connection.execute("""
+            CREATE INDEX IF NOT EXISTS idx_cache_expires_at
+            ON cache_entries(expires_at)
+        """)
 
+        connection.execute("""
+            CREATE INDEX IF NOT EXISTS idx_cache_question_normalized
+            ON cache_entries(lower(trim(question)))
+        """)
+
+        connection.commit()
 
 def record_request(
     question,

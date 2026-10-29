@@ -23,7 +23,7 @@ def choose_model(question: str) -> str:
         "compare", "advantages", "disadvantages", "architecture",
         "detailed", "explain", "examples", "use cases",
         "difference", "differences", "analyze", "analysis",
-        "step by step"
+        "step by step", "why", "how does", "how do"
     ]
 
     if len(question.split()) > 12 or any(
@@ -41,23 +41,46 @@ def generate_answer(question: str, model_name: str) -> dict:
             {
                 "role": "system",
                 "content": (
-                    "You are a helpful technical assistant. Answer the entire "
-                    "question accurately. Include requested examples, advantages, "
-                    "disadvantages, and use cases. Use clear headings and concise "
-                    "explanations. Complete your answer and conclusion before stopping."
+                    "You are a knowledgeable, clear, and helpful AI assistant. "
+                    "Answer the user's actual question directly. "
+                    "Do not ask for clarification unless the question is genuinely "
+                    "ambiguous or missing essential information. "
+                    "Do not invent context or assume the user means something "
+                    "they did not mention. "
+                    "For a clear question, start with the direct answer, then "
+                    "explain it in simple language. "
+                    "For technical questions, include a relevant example when useful. "
+                    "Use headings and lists when they improve readability. "
+                    "If the question is unclear, ask one short, specific "
+                    "clarification question. "
+                    "Keep simple questions concise and provide more detail for "
+                    "complex questions. Finish the answer properly."
                 ),
             },
-            {"role": "user", "content": question},
+            {
+                "role": "user",
+                "content": question.strip(),
+            },
         ],
-        max_tokens=6900,
+        max_tokens=2048,
+        temperature=0.3,
     )
 
     choice = response.choices[0]
+    answer = (choice.message.content or "").strip()
+
+    if not answer:
+        raise RuntimeError(
+            f"The AI model returned an empty answer. "
+            f"Finish reason: {choice.finish_reason}"
+        )
+
+    usage = response.usage
 
     return {
-        "answer": choice.message.content or "",
+        "answer": answer,
         "model_name": model_name,
-        "input_tokens": response.usage.prompt_tokens,
-        "output_tokens": response.usage.completion_tokens,
+        "input_tokens": usage.prompt_tokens if usage else 0,
+        "output_tokens": usage.completion_tokens if usage else 0,
         "finish_reason": choice.finish_reason,
     }
