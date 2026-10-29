@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+streamlit
+sentence-transformers
+numpy
+pandas
+requests
+python-dotenv
+groq
