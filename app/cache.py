@@ -4,12 +4,11 @@ import os
 import time
 
 import numpy as np
-from sentence_transformers import SentenceTransformer
+from sklearn.feature_extraction.text import HashingVectorizer
 
 from app.database import get_connection
 
 
-EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 SIMILARITY_THRESHOLD = float(
     os.getenv("CACHE_SIMILARITY_THRESHOLD", "0.82")
 )
@@ -17,28 +16,18 @@ CACHE_TTL_SECONDS = int(
     os.getenv("CACHE_TTL_SECONDS", "3600")
 )
 
-_embedding_model = None
-
-
-def get_embedding_model():
-    global _embedding_model
-
-    if _embedding_model is None:
-        _embedding_model = SentenceTransformer(EMBEDDING_MODEL_NAME)
-
-    return _embedding_model
+_vectorizer = HashingVectorizer(
+    n_features=384,
+    analyzer="char",
+    ngram_range=(2, 5),
+    alternate_sign=False,
+    norm="l2"
+)
 
 
 def create_embedding(text: str) -> list[float]:
-    model = get_embedding_model()
-
-    embedding = model.encode(
-        text.strip(),
-        normalize_embeddings=True,
-        convert_to_numpy=True
-    )
-
-    return embedding.astype(np.float32).tolist()
+    embedding = _vectorizer.transform([text.strip()])
+    return embedding.toarray()[0].astype(np.float32).tolist()
 
 
 def find_cached_answer(question: str):
