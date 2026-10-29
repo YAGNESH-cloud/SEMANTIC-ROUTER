@@ -1,11 +1,10 @@
-﻿
-import time
+﻿from streamlit_mic_recorder import speech_to_text
 import requests
 import streamlit as st
-
 import os
 
 API_URL = f"{os.getenv('API_BASE_URL', 'http://127.0.0.1:8000').rstrip('/')}/ask"
+
 st.set_page_config(
     page_title="Semantic AI | Assistant",
     page_icon="✦",
@@ -47,11 +46,6 @@ header[data-testid="stHeader"] {
 @keyframes glow {
     0%, 100% { box-shadow: 0 0 12px #7c6cff22; }
     50% { box-shadow: 0 0 28px #7c6cff66; }
-}
-
-@keyframes pulse {
-    0%, 100% { opacity: .65; }
-    50% { opacity: 1; }
 }
 
 .hero {
@@ -147,8 +141,7 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
     color: #e3eaff !important;
 }
 
-div.stButton > button,
-div.stFormSubmitButton > button {
+div.stButton > button {
     background: linear-gradient(100deg, #8d83ff, #62dce9);
     color: #080d19 !important;
     border: none !important;
@@ -158,14 +151,12 @@ div.stFormSubmitButton > button {
     transition: transform .2s ease, filter .2s ease;
 }
 
-div.stButton > button:hover,
-div.stFormSubmitButton > button:hover {
+div.stButton > button:hover {
     transform: translateY(-2px);
     filter: brightness(1.12);
 }
 
-div.stButton > button:active,
-div.stFormSubmitButton > button:active {
+div.stButton > button:active {
     transform: scale(.98);
 }
 
@@ -183,15 +174,6 @@ div.stFormSubmitButton > button:active {
 
 [data-testid="stMetricValue"] {
     color: #ffffff !important;
-}
-
-.answer-panel {
-    background: linear-gradient(145deg, #151f36, #101829);
-    border: 1px solid #3a4a70;
-    border-left: 4px solid #7f94ff;
-    border-radius: 16px;
-    padding: 22px;
-    animation: fadeUp .5s ease both;
 }
 
 .answer-label {
@@ -232,12 +214,18 @@ if "last_question" not in st.session_state:
 if "request_error" not in st.session_state:
     st.session_state.request_error = None
 
+if "question_input" not in st.session_state:
+    st.session_state.question_input = ""
+
+if "voice_question" not in st.session_state:
+    st.session_state.voice_question = ""
+
 
 def ask_question(question):
     question = question.strip()
 
     if not question:
-        st.session_state.request_error = "Please type a question first."
+        st.session_state.request_error = "Please type or speak a question first."
         return
 
     st.session_state.request_error = None
@@ -265,7 +253,9 @@ def ask_question(question):
         data = response.json()
 
         if not isinstance(data, dict):
-            st.session_state.request_error = "Unexpected response from the backend."
+            st.session_state.request_error = (
+                "Unexpected response from the backend."
+            )
             return
 
         st.session_state.last_result = data
@@ -282,7 +272,7 @@ def ask_question(question):
         )
     except requests.ConnectionError:
         st.session_state.request_error = (
-            "Cannot connect to FastAPI. Start the backend on port 8000."
+            "Cannot connect to the backend. Check your API URL and backend status."
         )
     except requests.RequestException as error:
         st.session_state.request_error = f"Request failed: {error}"
@@ -308,24 +298,42 @@ st.markdown("""
 
 with st.container(border=True):
     st.markdown("### ✦ What would you like to know?")
-    st.caption("Enter a question below to get started.")
+    st.caption("Type your question or use your microphone.")
 
-    with st.form("question_form", clear_on_submit=False):
-        question = st.text_area(
-            "Your question",
-            placeholder="Example: How does semantic caching reduce API costs?",
-            height=135,
-            key="question_input",
-            label_visibility="collapsed"
-        )
+    spoken_text = speech_to_text(
+        language="en",
+        start_prompt="🎙️ Start speaking",
+        stop_prompt="⏹️ Stop recording",
+        just_once=True,
+        use_container_width=True,
+        key="voice_input"
+    )
 
-        submitted = st.form_submit_button(
-            "✦  Generate Answer",
-            use_container_width=True
-        )
+    if spoken_text and spoken_text.strip():
+        recognized_text = spoken_text.strip()
 
-    if submitted:
+        if recognized_text != st.session_state.question_input:
+            st.session_state.question_input = recognized_text
+            st.session_state.voice_question = recognized_text
+
+    if st.session_state.voice_question:
+        st.success("Voice recognized. You can edit the text below before submitting.")
+
+    question = st.text_area(
+        "Your question",
+        placeholder="Speak into the microphone or type your question here...",
+        height=135,
+        key="question_input",
+        label_visibility="collapsed"
+    )
+
+    if st.button(
+        "✦ Generate Answer",
+        key="generate_answer",
+        use_container_width=True
+    ):
         ask_question(question)
+        st.session_state.voice_question = ""
 
     st.markdown("**Need an idea? Try one of these:**")
 
@@ -344,6 +352,7 @@ with st.container(border=True):
                 key=f"example_{index}",
                 use_container_width=True
             ):
+                st.session_state.question_input = example
                 ask_question(example)
 
 if st.session_state.request_error:
@@ -398,7 +407,10 @@ if data is not None:
         )
 
     with st.expander("View technical details"):
-        st.write("**Question:**", data.get("question", st.session_state.last_question))
+        st.write(
+            "**Question:**",
+            data.get("question", st.session_state.last_question)
+        )
         st.write("**Model:**", data.get("model_name", "Not provided"))
         st.write("**Status:**", data.get("status", "Not provided"))
         st.json(data)
